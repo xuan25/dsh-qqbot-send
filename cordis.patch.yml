@@ -1,0 +1,7 @@
+# dsh-qqbot-send: cordis bundle patch that registers the plugin in the profile.
+# config is empty; credentials and endpoints come from the QQBOT_APPID,
+# QQBOT_SECRET, QQBOT_BASE_URL and QQBOT_TOKEN_BASE_URL env vars (see README).
+- insert:
+    - id: qqbot-send
+      name: 'dsh-qqbot-send'
+      config: {}
