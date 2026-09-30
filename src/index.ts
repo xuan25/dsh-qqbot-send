@@ -17,9 +17,9 @@
  * with the dsh-tools `defineTool` helper (declarative parameter/output
  * specs).
  *
- * The query component is import-free of any other plugin: it works off
- * this plugin's own in-memory send cache plus the on-disk model-preferences
- * inventory (`~/.dsh-qqbot/model-prefs.json` by default).
+ * The query component is import-free of any other plugin: it works off the
+ * on-disk model-preferences inventory (`~/.dsh-qqbot/model-prefs.json` by
+ * default).
  */
 
 import Schema from '@deepseek-ai/schemastery';
@@ -93,7 +93,6 @@ export class QqBotSendPlugin extends Service {
     this.logger = ctx.logger(PLUGIN_NAME)
     this.sender = new QQMessageSender(config, this.logger)
     this.registry = new TargetRegistry({
-      sender: this.sender,
       resolveAppId: () => this.sender.resolveAppId(),
       logger: this.logger,
     })
@@ -212,7 +211,6 @@ function sendToolDefinition(sender: QQMessageSender, logger: Logger): ToolDefini
         const result = await sender.send(args.target, args.content, {
           markdown: args.markdown,
           signal: exec.signal,
-          sessionId,
         });
         logger.debug?.(
           `[qqbot-send] sent ${result.sentChunks}/${result.totalChunks} chunk(s) to ${result.target} (agent=${sessionId ?? 'n/a'})`,
@@ -227,21 +225,14 @@ function sendToolDefinition(sender: QQMessageSender, logger: Logger): ToolDefini
 
 /** Build the qqbot_current_target tool definition. */
 function currentTargetToolDefinition(registry: TargetRegistry): ToolDefinition {
-  const knownItems = {
-    type: 'object',
-    additionalProperties: false,
-    properties: {
-      scope: { type: 'string', enum: ['c2c', 'group', 'channel', 'dm'], required: true, description: 'Conversation scope' },
-      targetId: { type: 'string', required: true, description: 'Platform id of the conversation' },
-    },
-  } as const;
   return defineTool({
     name: 'qqbot_current_target',
     description:
-      "Look up the QQ conversation target of the current session (zero side effects; sends nothing): returns scope (c2c/group/channel/dm) " +
-      "and targetId for use with qqbot_send_message. Hit sources: this plugin's recent send records, or the on-disk session inventory " +
-      '(~/.dsh-qqbot/model-prefs.json). On a miss a known list is returned for explicit selection. Coverage: only QQ sessions that sent ' +
-      'to this plugin before or that appear in the inventory are recognized.',
+      'Look up the QQ conversation target of the current session (zero side effects; sends nothing): returns scope (c2c/group/channel/dm) ' +
+      'and targetId for use with qqbot_send_message. Single data source: the on-disk model-preferences inventory ' +
+      '(~/.dsh-qqbot/model-prefs.json, written by the dsh-qqbot gateway plugin when installed), value-matched against the current ' +
+      "session's id and restricted to this bot's appId and the sendable scopes. Coverage: only QQ sessions present in the " +
+      'inventory are recognized.',
     parameters: {},
     output: {
       schema: {
@@ -251,22 +242,9 @@ function currentTargetToolDefinition(registry: TargetRegistry): ToolDefinition {
             additionalProperties: false,
             properties: {
               resolved: { type: 'boolean', const: true, required: true, description: 'Whether the current session maps to a known QQ conversation' },
-              source: {
-                type: 'string',
-                enum: ['send-cache', 'inventory'],
-                required: true,
-                description: 'Where the hit came from (send-cache = this plugin sent for this session before)',
-              },
               scope: { type: 'string', required: true, description: 'Conversation scope (c2c/group/channel/dm)' },
               targetId: { type: 'string', required: true, description: 'Platform id of the conversation' },
               target: { type: 'string', required: true, description: 'Ready-to-use target string for qqbot_send_message' },
-              known: {
-                type: 'array',
-                items: knownItems,
-                required: true,
-                description:
-                  'Sendable-scope (c2c/group/channel/dm) targets seen in the inventory; never filtered by appId; a selection aid',
-              },
             },
           },
           {
@@ -274,38 +252,16 @@ function currentTargetToolDefinition(registry: TargetRegistry): ToolDefinition {
             additionalProperties: false,
             properties: {
               resolved: { type: 'boolean', const: false, required: true, description: 'Whether the current session maps to a known QQ conversation' },
-              source: {
-                type: 'string',
-                const: 'none',
-                required: true,
-                description: 'Where the hit came from (none = no hit)',
-              },
-              known: {
-                type: 'array',
-                items: knownItems,
-                required: true,
-                description:
-                  'Sendable-scope (c2c/group/channel/dm) targets seen in the inventory; never filtered by appId; a selection aid',
-              },
               note: { type: 'string', required: true, description: 'Explanation when unresolved (empty otherwise)' },
             },
           },
         ],
       },
       render: (_args, value) => {
-        const parts: string[] = [];
         if (value.resolved) {
-          parts.push(`Current QQ conversation: ${value.target} (source ${value.source})`);
-        } else {
-          parts.push('No QQ conversation recognized (not a QQ session or no record)');
-          if (value.note) {
-            parts.push(value.note);
-          }
+          return [{ type: 'text', text: value.target }];
         }
-        if (value.known.length > 0) {
-          parts.push(`Known targets: ${value.known.map((k) => `${k.scope}:${k.targetId}`).join(', ')}`);
-        }
-        return [{ type: 'text', text: parts.join('\n') }];
+        return [{ type: 'text', text: value.note }];
       },
     },
     async execute(_args, exec) {

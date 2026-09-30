@@ -31,7 +31,7 @@ import type { Credentials, MessageResponse } from '@tencent-connect/qqbot-nodejs
 
 import { MessageChunker } from './chunker.js';
 import { parseTarget, TARGET_FORMAT } from './targets.js';
-import type { Logger, SendResult, TargetRef, TargetScope } from './types.js';
+import type { Logger, SendResult, TargetScope } from './types.js';
 
 /** Default base URL for both the message and the token endpoints. */
 export const DEFAULT_BASE_URL = 'https://api.bot.qq.com';
@@ -65,8 +65,6 @@ export interface SendOptions {
   markdown?: boolean;
   /** Caller cancellation signal. */
   signal?: AbortSignal;
-  /** Session id recorded into the send cache on full success. */
-  sessionId?: string;
 }
 
 interface ResolvedSenderConfig {
@@ -167,7 +165,6 @@ export class QQMessageSender {
   private readonly config: ResolvedSenderConfig;
   private readonly logger?: Logger;
   private readonly chunker: MessageChunker;
-  private readonly sendCache: Map<string, TargetRef>;
   private clientChain: ClientChain | null;
   private appId: string | null;
 
@@ -186,7 +183,6 @@ export class QQMessageSender {
     // Fail fast on a misconfigured chunkLimit (RangeError) instead of at the
     // first send; the chunker is constructed once and reused per send.
     this.chunker = new MessageChunker(this.config.chunkLimit);
-    this.sendCache = new Map();
     this.clientChain = null;
     this.appId = null;
   }
@@ -250,18 +246,6 @@ export class QQMessageSender {
     return this.clientChain;
   }
 
-  /** Remember which target a session was last sent to (in-memory only). */
-  recordSend(sessionId: string | undefined, scope: TargetScope, targetId: string): void {
-    if (sessionId && sessionId.length > 0) {
-      this.sendCache.set(sessionId, { scope, targetId });
-    }
-  }
-
-  /** Look up the last sent target of a session, if any. */
-  cachedTarget(sessionId: string): TargetRef | undefined {
-    return this.sendCache.get(sessionId);
-  }
-
   /**
    * Send `content` to one QQ target, chunked when longer than the limit.
    * Sending stops at the first failed chunk; the canonical result carries
@@ -314,10 +298,6 @@ export class QQMessageSender {
       if (i < chunks.length - 1 && gapMs > 0) {
         await sleep(gapMs);
       }
-    }
-
-    if (note === '') {
-      this.recordSend(options.sessionId, scope, targetId);
     }
 
     return {

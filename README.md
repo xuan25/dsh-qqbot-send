@@ -67,19 +67,11 @@ bypasses platform limits.
 
 ### `qqbot_current_target`
 
-Resolves the current session's QQ `{scope, targetId}` for use with
-`qqbot_send_message`, in this order:
-
-1. this plugin's recent send cache;
-2. the on-disk session inventory at `~/.dsh-qqbot/model-prefs.json` (written
-   by the dsh-qqbot gateway plugin, when installed) - entries map a QQ
-   session key to the dsh session id of that QQ session;
-3. a miss returns `resolved: false` plus a `known` list of sendable-scope
-   targets from the inventory, so one of them can be addressed explicitly.
-
-Only QQ sessions that this plugin sent to before, or that appear in the
-inventory, are recognizable; without a dsh-qqbot gateway the inventory does
-not exist and the `known` list stays empty.
+Resolves which QQ conversation the current agent session belongs to, with
+no side effects. It recognizes QQ sessions recorded by the dsh-qqbot
+gateway plugin (when installed); without a gateway the lookup always
+misses. A hit returns the ready-to-use target string, for example
+`group:<group_openid>`; a miss returns a short note explaining why.
 
 ## Message chunking
 
