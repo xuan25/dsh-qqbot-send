@@ -1,10 +1,9 @@
 # dsh-qqbot-send
 
-DSH plugin that proactively sends text or markdown messages to any QQ
-target - `c2c` (private chat), `group`, `channel`, or guild `dm` - via the
-QQ Open Platform REST API. It opens no WebSocket/gateway connection. A
-second tool resolves which QQ conversation the current agent session
-belongs to, with no side effects.
+DSH plugin that proactively sends text or markdown messages to QQ targets
+- `c2c` (private chat), `group`, `channel`, or guild `dm` - over the QQ
+Open Platform REST API. It opens no WebSocket/gateway connection of its
+own.
 
 ## Installation
 
@@ -20,22 +19,22 @@ The plugin registers itself. Inspect the composed configuration with
 
 ## Configuration
 
-All keys are optional. The four string keys (`appId`, `appSecret`,
-`baseUrl`, `tokenBaseUrl`) fall back to the named environment variable, or
-to the default shown, when left empty, and also accept an explicit
-`process.env.VARNAME` value; the remaining keys use the defaults shown.
-When the profile environment provides `QQBOT_APPID` and `QQBOT_SECRET`, no
-configuration is required.
+When the profile environment provides `QQBOT_APPID` and `QQBOT_SECRET`,
+no configuration is required. To set credentials directly or override the
+defaults:
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `appId` | `''` | empty, `__FROM_ENV__`, or a `process.env.` reference = env `QQBOT_APPID` |
-| `appSecret` | `''` | empty, `__FROM_ENV__`, or a `process.env.` reference = env `QQBOT_SECRET` |
-| `baseUrl` | `''` | message API base URL; empty, `__FROM_ENV__`, or a `process.env.` reference = env `QQBOT_BASE_URL`, else `https://api.bot.qq.com` |
-| `tokenBaseUrl` | `''` | token endpoint base URL; empty, `__FROM_ENV__`, or a `process.env.` reference = env `QQBOT_TOKEN_BASE_URL`, else `https://api.bot.qq.com` |
+| `appId` | env `QQBOT_APPID` | bot application id |
+| `appSecret` | env `QQBOT_SECRET` | bot application secret |
 | `markdownSupport` | `true` | whether c2c/group default to markdown |
-| `chunkLimit` | `4500` | max characters per message (an invalid value rejects the plugin at startup) |
+| `chunkLimit` | `4500` | max characters per message |
 | `chunkGapMs` | `500` | gap between chunk sends, in milliseconds |
+
+The message and token API base URLs default to `https://api.bot.qq.com`
+and can be overridden with the `QQBOT_BASE_URL` / `QQBOT_TOKEN_BASE_URL`
+environment variables. Any key above may also hold `__FROM_ENV__` or a
+`process.env.VARNAME` reference.
 
 Missing credentials never block registration: both tools register, and a
 send attempt fails at execute time with a clear error. The plugin requires
@@ -48,22 +47,17 @@ inactive.
 
 Send a message to a QQ target. No inbound message is required.
 
-| Parameter | Description |
-| --- | --- |
-| `target` | `c2c:<openid>` (private chat) / `group:<group_openid>` (group) / `channel:<channel_id>` (channel) / `dm:<guild_id>` (guild DM) |
-| `content` | Message body (markdown or plain text) |
-| `markdown` | Optional. c2c/group: defaults to the `markdownSupport` setting (true = markdown, false = plain text). channel/dm: plain text by default; explicit `true` sends markdown, and any platform rejection is surfaced as a `bizCode` |
+- `target`: `c2c:<openid>` (private chat) / `group:<group_openid>` (group) / `channel:<channel_id>` (channel) / `dm:<guild_id>` (guild DM)
+- `content`: message body (markdown or plain text)
+- `markdown` (optional): c2c/group default to the `markdownSupport` setting; channel/dm default to plain text
 
-Long bodies (over `chunkLimit`) are split automatically and sent
-sequentially with a `chunkGapMs` gap. Sending stops at the first failed
-chunk; the failure detail (platform `bizCode` when present) is reported in
-the `note` field. Successful sends are recorded in an in-memory send cache
-(cleared on restart) that `qqbot_current_target` can resolve.
+Long bodies are split automatically and sent sequentially; sending stops at
+the first failed chunk, and the platform `bizCode` (when present) is
+reported in the `note` field.
 
 **Platform limits:** proactive messages are subject to QQ platform quotas
 (strictest for c2c) and may only reach users who recently interacted with
-the bot; other sends are rejected with a `bizCode`. Nothing in this plugin
-bypasses platform limits.
+the bot; nothing in this plugin bypasses platform limits.
 
 ### `qqbot_current_target`
 
@@ -75,16 +69,12 @@ misses. A hit returns the ready-to-use target string, for example
 
 ## Message chunking
 
-Long messages are split at line boundaries. Fenced code blocks and table
-row runs move whole to the next chunk instead of being cut apart; a block
-taller than `chunkLimit` is re-packed line by line. A single line longer
-than the limit is sent alone and may be rejected by the platform. Splitting
-is lossless: rejoining the chunks reproduces the original text exactly.
+Long messages are split at line boundaries; fenced code blocks and table
+rows move whole to the next chunk. Splitting is lossless: rejoining the
+chunks reproduces the original text exactly.
 
 ## Tests
 
 `pnpm build`, `pnpm typecheck`, `pnpm lint`, and `node --test` are the
-quality gates. The test suite pins the chunker, the target resolution
-chain, and a deploy-time token smoke test that skips when no `QQBOT_APPID`
-/ `QQBOT_SECRET` is present, or when the SDK cannot be resolved (pass
-`--sdk-dir`, or set `QQBOT_SDK_DIR`, to point at an installed copy).
+quality gates; a deploy-time token smoke test skips when no
+`QQBOT_APPID` / `QQBOT_SECRET` is present.
