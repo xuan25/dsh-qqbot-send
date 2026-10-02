@@ -1,9 +1,11 @@
 # dsh-qqbot-send
 
-DSH plugin that proactively sends text or markdown messages to QQ targets
-- `c2c` (private chat), `group`, `channel`, or guild `dm` - over the QQ
-Open Platform REST API. It opens no WebSocket/gateway connection of its
-own.
+dsh-qqbot-send gives a DSH agent a way to proactively push messages to QQ: a single tool call delivers text or markdown to a QQ user, group, channel, or guild DM over the QQ Open Platform REST API, so any session can reach the user on QQ even when the conversation started elsewhere.
+
+- Proactive send to any QQ target: c2c private chat, group, channel, guild DM
+- Coexists with a running dsh-qqbot gateway - pure REST, shares no connection
+- Resolves the current session's QQ conversation with `qqbot_current_target`, for a send straight back to where the conversation came from
+- Long messages are chunked automatically at line boundaries; code blocks and table rows move whole, and rejoining is lossless
 
 ## Installation
 
